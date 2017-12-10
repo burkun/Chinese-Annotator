@@ -41,6 +41,7 @@ class ActiveLearner(object):
 
         examples = []
         for e in data_set:
+            # TODO time consuming ?
             data = e.copy()
             if "text" in data:
                 del data["text"]

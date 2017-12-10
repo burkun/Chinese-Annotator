@@ -6,10 +6,6 @@ from chi_annotator.algo_factory.common import Message, TrainingData
 
 logger = logging.getLogger(__name__)
 
-# Different supported file formats and their identifier
-# TODO
-
-
 def local_data_schema():
 
     return {

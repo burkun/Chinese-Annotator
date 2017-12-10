@@ -9,16 +9,16 @@ import os
 import six
 
 # Describes where to search for the config file if no location is specified
-
-DEFAULT_CONFIG_LOCATION = "config.json"
+# TC = TaskCenter
+TC_DEFAULT_CONFIG_LOCATION = "config.json"
 
 # TODO this default config should consider more later
-DEFAULT_CONFIG = {
+TC_DEFAULT_CONFIG = {
     "project": None,
     "fixed_model_name": None,
-    "config": DEFAULT_CONFIG_LOCATION,
+    "config": TC_DEFAULT_CONFIG_LOCATION,
     "data": None,
-    "emulate": None,
+    # "emulate": None,
     "language": "zh",
     "log_file": None,
     "log_level": 'INFO',
@@ -50,14 +50,20 @@ class InvalidConfigError(ValueError):
 
 
 class AnnotatorConfig(object):
+    # TODO not used yet
     DEFAULT_PROJECT_NAME = "default"
 
-    def __init__(self, filename=None, env_vars=None, cmdline_args=None):
+    def __init__(self, filename=None):
+        '''
+        init annotator configure
+        :param filename: saved path
+        :param env_vars: system vars
+        :return:
+        '''
+        if filename is None and os.path.isfile(TC_DEFAULT_CONFIG_LOCATION):
+            filename = TC_DEFAULT_CONFIG_LOCATION
 
-        if filename is None and os.path.isfile(DEFAULT_CONFIG_LOCATION):
-            filename = DEFAULT_CONFIG_LOCATION
-
-        self.override(DEFAULT_CONFIG)
+        self.override(TC_DEFAULT_CONFIG)
         if filename is not None:
             try:
                 with io.open(filename, encoding='utf-8') as f:
@@ -65,14 +71,6 @@ class AnnotatorConfig(object):
             except ValueError as e:
                 raise InvalidConfigError("Failed to read configuration file '{}'. Error: {}".format(filename, e))
             self.override(file_config)
-
-        if env_vars is not None:
-            env_config = self.create_env_config(env_vars)
-            self.override(env_config)
-
-        if cmdline_args is not None:
-            cmdline_config = self.create_cmdline_config(cmdline_args)
-            self.override(cmdline_config)
 
         if isinstance(self.__dict__['pipeline'], six.string_types):
             from chi_annotator.algo_factory import registry
@@ -131,21 +129,6 @@ class AnnotatorConfig(object):
             if "pipeline" in config and len(config["pipeline"]) == 1:
                 config["pipeline"] = config["pipeline"][0]
         return config
-
-    def create_cmdline_config(self, cmdline_args):
-        cmdline_config = {k: v
-                          for k, v in list(cmdline_args.items())
-                          if v is not None}
-        cmdline_config = self.split_pipeline(cmdline_config)
-        cmdline_config = self.split_arg(cmdline_config, "duckling_dimensions")
-        return cmdline_config
-
-    def create_env_config(self, env_vars):
-        keys = [key for key in env_vars.keys() if "RASA_" in key]
-        env_config = {key.split('RASA_')[1].lower(): env_vars[key] for key in keys}
-        env_config = self.split_pipeline(env_config)
-        env_config = self.split_arg(env_config, "duckling_dimensions")
-        return env_config
 
     def make_paths_absolute(self, config, keys):
         abs_path_config = dict(config)
