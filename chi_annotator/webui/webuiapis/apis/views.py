@@ -1,20 +1,24 @@
 import os
 import uuid
 
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, redirect
 from rest_framework.views import APIView
 from werkzeug.utils import secure_filename
 
-from apis.apiresponse import APIResponse
-from apis.mongomodel import AnnotationData
-from apis.serializers import APIResponseSerializer, AnnotationDataSerializer
-from utils.mongoUtil import get_mongo_client
+from chi_annotator.webui.webuiapis.apis.apiresponse import APIResponse
+from chi_annotator.webui.webuiapis.apis.mongomodel import AnnotationRawData, DataSet, AnnotationData
+from chi_annotator.webui.webuiapis.apis.serializers import *
+from chi_annotator.webui.webuiapis.utils.config import WebUIConfig
+from chi_annotator.webui.webuiapis.utils.mongoUtil import get_mongo_client
+from rest_framework.renderers import JSONRenderer
 import json
 
 
 UPLOAD_FOLDER = '../../data/files'
 ALLOWED_EXTENSIONS = set(['txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'])
+config = WebUIConfig()
+
 
 class AnnotationDataViewSet(APIView):
     pass
@@ -23,6 +27,20 @@ class AnnotationDataViewSet(APIView):
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def project_info(request):
+    """
+    get the project in as json
+    :param request:
+    :return:
+    """
+    response = APIResponse()
+    response.data = config.view()
+    response.code = 200
+    response.message = "Connect REST SUCCESS"
+    serializer = APIResponseSerializer(response)
+    return JsonResponse(serializer.data)
 
 
 def upload_remote_file(request):
@@ -42,6 +60,8 @@ def upload_remote_file(request):
             # submit a empty part without filename
             if file.name != '':
                 if file and allowed_file(file.name):
+
+
                     # save file
                     filename = secure_filename(file.name)
                     file_path = os.path.join(UPLOAD_FOLDER, filename)
@@ -51,13 +71,20 @@ def upload_remote_file(request):
 
                     # read file
                     ca = get_mongo_client(uri='mongodb://localhost:27017/')
+                    # save data set
+                    data_set_uuid = uuid.uuid1()
+                    data_set = DataSet(name=file.name, uuid=data_set_uuid)
+                    data_set_serializer = DataSetSerializer(data_set)
+                    ca["dataset"].insert_one(data_set_serializer.data)
+
+                    # save annotation data
                     with open(file_path, 'r', encoding='utf-8') as f:
                         for line in f:
                             text = line.strip()
                             text_uuid = uuid.uuid1()
-                            annotation_data = AnnotationData(text=text, uuid=text_uuid)
-                            annotation_data_serializer = AnnotationDataSerializer(annotation_data)
-                            ca["annotation_data"].insert_one(annotation_data_serializer.data)
+                            annotation_raw_data = AnnotationRawData(text=text, uuid=text_uuid, dataset_uuid=data_set_uuid)
+                            annotation_raw_data_serializer = AnnotationRawDataSerializer(annotation_raw_data)
+                            ca["annotation_raw_data"].insert_one(annotation_raw_data_serializer.data)
                     response.data = {"status": "success"}
                     response.code = 200
                     response.message = "Load SUCCESS"
@@ -94,9 +121,9 @@ def load_local_dataset(request):
                 print("get string %s" % line)
                 text = line.strip()
                 text_uuid = uuid.uuid1()
-                annotation_data = AnnotationData(text=text, uuid=text_uuid)
-                annotation_data_serializer = AnnotationDataSerializer(annotation_data)
-                ca["annotation_data"].insert_one(annotation_data_serializer.data)
+                annotation_raw_data = AnnotationRawData(text=text, uuid=text_uuid)
+                annotation_raw_data_serializer = AnnotationRawDataSerializer(annotation_raw_data)
+                ca["annotation_raw_data"].insert_one(annotation_raw_data_serializer.data)
         response.data = {"status": "success"}
         response.code = 200
         response.message = "Load SUCCESS"
@@ -115,14 +142,13 @@ def export_data(request):
     """
     # read file
     ca = get_mongo_client(uri='mongodb://localhost:27017/')
-    with open("../../data/files/data.json", "w") as f:
+    with open("../../data/files/annotation_data.json", "w") as f:
         annotations = ca["annotation_data"].find({}).batch_size(50)
         result = []
         for annotation in annotations:
             data = {
                 "label": annotation["label"],
                 "txt": annotation["txt"],
-
             }
             result.append(data)
         json.dump(result, f)
@@ -142,15 +168,87 @@ def load_single_unlabeled(request):
     """
     # read file
     ca = get_mongo_client(uri='mongodb://localhost:27017/')
-    text = ca["annotation_data"].find_one({"label": ""})
+    text = ca["annotation_raw_data"].find_one({"labeled": False})
 
-    annotation_data = AnnotationData(text=text.get("text"), uuid=text.get("uuid"))
-    annotation_data_serializer = AnnotationDataSerializer(annotation_data)
+    annotation_data = AnnotationRawData(text=text.get("text"), uuid=text.get("uuid"))
+    annotation_data_serializer = AnnotationRawDataSerializer(annotation_data)
 
     response = APIResponse()
-    response.data = annotation_data_serializer.data
+    response.data = json.dumps(annotation_data_serializer.data)
     response.code = 200
+    response.message = "SUCCESS"
     serializer = APIResponseSerializer(response)
     return JsonResponse(serializer.data)
 
 
+def annotate_single_unlabeled(request):
+    """
+    save the labeled annotation to DB
+    :return:
+    """
+    # read file
+    text = request.POST.get("text", "")
+    label = request.POST.get("label", "")
+    uuid = request.POST.get("uuid", "")
+
+    ca = get_mongo_client(uri='mongodb://localhost:27017/')
+
+    raw_text = ca["annotation_raw_data"].find_one({"uuid": uuid})
+    if raw_text:
+        ca["annotation_raw_data"].update({"uuid": uuid}, {"$set": {"labeled": True}})
+
+        annotation_data = AnnotationData(text=text, label=label, uuid=uuid, dataset_uuid=raw_text.get("dataset_uuid"))
+        annotation_data_serializer = AnnotationDataSerializer(annotation_data)
+        ca["annotation_data"].insert_one(annotation_data_serializer.data)
+
+    response = APIResponse()
+    response.data = {"status": "success"}
+    response.code = 200
+    response.message = "SUCCESS"
+    serializer = APIResponseSerializer(response)
+    return JsonResponse(serializer.data)
+
+
+def query_annotatoin_history(request):
+    """
+    load one unlabeled text from Mongo DB to web
+    :return:
+    """
+    # read file
+    ca = get_mongo_client(uri='mongodb://localhost:27017/')
+    rec_number = int(request.GET.get("RecNum"))
+    page_number = int(request.GET.get("page_number"))
+
+
+    text = ca["annotation_data"].find().limit(rec_number).skip(page_number*rec_number)
+    result = list()
+    for t in text:
+        data = dict()
+        data["text"] = t.get("text")
+        data["label"] = t.get("label")
+        data["uuid"] = t.get("uuid")
+        data["dataset_uuid"] = t.get("dataset_uuid")
+        data["time_stamp"] = t.get("time_stamp")
+        result.append(data)
+
+    response = APIResponse()
+    response.data = json.dumps(result)
+    response.code = 200
+    response.message = "SUCCESS"
+    serializer = APIResponseSerializer(response)
+    return JsonResponse(serializer.data)
+
+def check_offline_progress(request):
+    """
+    check offline training process
+    :return:
+    """
+    # read file
+    text = request.form.get("text", "")
+    label = request.form.get("label", "")
+    print(text)
+    print(label)
+    ca = get_mongo_client()
+    text = ca["annotation_data"].insert_one({"label": label, "text": text})
+
+    return JsonResponse(data={"progress": 50}, code=200, message="annotate success")
