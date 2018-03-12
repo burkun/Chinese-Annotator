@@ -117,7 +117,7 @@ class Component(object):
         on any context attributes created by a call to `process` of components previous to this one."""
         pass
 
-    def persist(self, model_dir):
+    def persist(self, model_dir, **args):
         # type: (Text) -> Optional[Dict[Text, Any]]
         """Persist this component to disk for future loading."""
         pass
@@ -164,7 +164,10 @@ class ComponentBuilder(object):
             self.component_cache[cache_key] = component
             logger.info("Added '{}' to component cache. Key '{}'.".format(component.name, cache_key))
 
-    def load_component(self, component_name, model_dir, model_metadata, **context):
+    def load_component(self, component_name, model_dir, model_metadata, config = None, **context):
+        """
+        # TODO config is no use
+        """
         # type: (Text, Text, Metadata, **Any) -> Component
         """Tries to retrieve a component from the cache, calls `load` to create a new component."""
         from chi_annotator.algo_factory import registry
