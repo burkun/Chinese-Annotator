@@ -1,6 +1,21 @@
 {
-  "ip" : "localhost",  
-  "port": "8000",
-  "database_type": "mongodb",
-  "type": "classification"
+  "db_config": {
+    "database_hostname": "localhost",
+    "database_port": 27017,
+    "database_type": "mongodb",
+    "database_name": "chinese_annotator",
+    "user_name": "anno_admin",
+    "password": "123"
+  },
+  "task_center_config": {
+    "max_process_number": 4,
+    "max_task_in_queue": 100,
+    "log_level": "INFO",
+    "port": 5000,
+    "language": "ZH",
+    "db_name": "chinese_annotator",
+    "save_path": null,
+    "user_instance_path_template": "%s/%s-%s",
+    "flask_debug": true
+}
 }

@@ -9,9 +9,7 @@ import six
 
 # Describes where to search for the config file if no location is specified
 # global configure name
-TASK_CENTER_GLOBAL_CONFIG_NAME = "task_center_config.json"
 TASK_CENTER_GLOBAL_CONFIG = {
-    "config_name": TASK_CENTER_GLOBAL_CONFIG_NAME,
     "max_process_number": 4,
     "max_task_in_queue": 100,
     "log_level": "INFO",
@@ -21,7 +19,8 @@ TASK_CENTER_GLOBAL_CONFIG = {
     # cur path
     "save_path": os.path.dirname(os.path.abspath(__file__)) + "/../user_instance",
     # make sure user dir is created
-    "user_instance_path_template": os.path.join("%s", "%s-%s")
+    "user_instance_path_template": os.path.join("%s", "%s-%s"),
+    "flask_debug": True
 }
 # task configure
 CLASSIFY_TASK_CONFIG = {
