@@ -8,10 +8,10 @@
     "password": "123"
   },
   "task_center_config": {
-    "max_process_number": 4,
+    "max_process_number": 1,
     "max_task_in_queue": 100,
     "log_level": "INFO",
-    "port": 5000,
+    "port": 5001,
     "language": "ZH",
     "db_name": "chinese_annotator",
     "save_path": null,

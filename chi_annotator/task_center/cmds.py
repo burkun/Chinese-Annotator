@@ -1,4 +1,5 @@
 import datetime
+import time
 
 from chi_annotator.task_center.common import Command
 from chi_annotator.task_center.common import DBLinker
@@ -158,12 +159,12 @@ class BatchPredictCmd(Command):
         return preds
 
 
-class StatusCmd(Command):
+class LatestStatusCmd(Command):
     """
-    query task status by user id && dataset id && task type
+    TODO use task id to query task status
     """
     def __init__(self, db_config, task_config):
-        super(StatusCmd, self).__init__(db_config)
+        super(LatestStatusCmd, self).__init__(db_config)
         self.db_config = db_config
         self.task_config = task_config
         self.uid = self.task_config.get("user_uuid")
@@ -185,3 +186,13 @@ class StatusCmd(Command):
             return batch_result[0]["status"], batch_result[0]["end_timestamp"]
         else:
             return "not found!", None
+
+class EmptyCmd():
+    def __init__(self):
+        self.timestamp = time.time()
+
+    def exec(self):
+        time.sleep(1)
+
+    def __call__(self, **args):
+        self.exec()

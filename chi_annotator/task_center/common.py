@@ -137,14 +137,15 @@ class TaskManager:
         :param command: command
         :return: true or false, if sent success return True else return False
         """
-        self.lock.acquire()
         if len(self.task_map) < self.max_task_in_queue:
-            self.task_map[command.timestamp] = self.pool.submit(command)
-            self.task_map[command.timestamp].add_done_callback(functools.partial(self.task_done, command))
+            # TODO
+            task = self.pool.submit(command)
+            self.lock.acquire()
+            self.task_map[command.timestamp] = task
             self.lock.release()
+            task.add_done_callback(functools.partial(self.task_done, command))
             return True
         else:
-            self.lock.release()
             return False
 
     def task_done(self, command, future_obj):
@@ -155,7 +156,6 @@ class TaskManager:
         :return:
         """
         self.lock.acquire()
-        # print("pop:" + str(command.timestamp))
         self.task_map.pop(command.timestamp)
         self.lock.release()
 

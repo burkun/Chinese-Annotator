@@ -128,9 +128,9 @@ def abs_test_status():
     print(st_cmd())
 
 if __name__ == "__main__":
-    abs_test_status()
+    # abs_test_status()
 
-    # abc_test_batch_train()
+    abc_test_batch_train()
     # abc_test_batch_train()
     # abc_test_batch_predict()
     # abc_test_batch_nodb_predict()
