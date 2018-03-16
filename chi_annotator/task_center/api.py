@@ -153,6 +153,8 @@ def init_and_run(config_path):
     # init task manager
     task_manager = TaskManager(GLOBAL_CONFIG[TASK_CONFIG_KEY]["max_process_number"],
                                GLOBAL_CONFIG[TASK_CONFIG_KEY]["max_task_in_queue"])
+    # active task manager, let it on process not thread
+    task_manager.exec_command(EmptyCmd())
     port = GLOBAL_CONFIG[TASK_CONFIG_KEY]["port"]
     debug = GLOBAL_CONFIG[TASK_CONFIG_KEY]["flask_debug"]
     flask_app = Flask(__name__)
