@@ -97,7 +97,7 @@ class Command(object):
 
     def __init__(self, linker_config):
         self.linker = DBLinker(linker_config)
-        self.timestamp = time.time()
+        self.timestamp = str(time.time())
 
     def __call__(self, *args, **kwargs):
         """

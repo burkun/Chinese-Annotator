@@ -17,7 +17,7 @@ class BatchTrainCmd(Command):
         self.dataset_id = self.task_config.get("dataset_uuid")
         if "model_version" in task_config:
             # override timestamp
-            self.timestamp = task_config["model_version"]
+            self.timestamp = str(task_config["model_version"])
 
     def __create_insert(self):
         return {
@@ -75,7 +75,7 @@ class BatchNoDbPredictCmd(Command):
         self.uid = self.task_config.get("user_uuid")
         self.dataset_id = self.task_config.get("dataset_uuid")
         if "model_version" in task_config:
-            self.timestamp = task_config["model_version"]
+            self.timestamp = str(task_config["model_version"])
 
     def exec(self):
         # from result to train_data, create train data
@@ -120,7 +120,7 @@ class BatchPredictCmd(Command):
         self.dataset_id = self.task_config.get("dataset_uuid")
         if "model_version" in task_config:
             # override timestamp
-            self.timestamp = task_config["model_version"]
+            self.timestamp = str(task_config["model_version"])
 
     def exec(self):
         # get batch data
@@ -161,7 +161,7 @@ class BatchPredictCmd(Command):
 
 class LatestStatusCmd(Command):
     """
-    TODO use task id to query task status
+    use user uuid dataset uuid and task type to query latest task status
     """
     def __init__(self, db_config, task_config):
         super(LatestStatusCmd, self).__init__(db_config)
@@ -171,7 +171,7 @@ class LatestStatusCmd(Command):
         self.dataset_id = self.task_config.get("dataset_uuid")
         if "model_version" in task_config:
             # override timestamp
-            self.timestamp = task_config["model_version"]
+            self.timestamp = str(task_config["model_version"])
 
     def exec(self):
         filter_condition = {'user_uuid': self.uid,
@@ -183,13 +183,39 @@ class LatestStatusCmd(Command):
         batch_result = self.linker.action(DBLinker.BATCH_FETCH, **batch_exec_args)
         # predict
         if len(batch_result) == 1:
-            return batch_result[0]["status"], batch_result[0]["end_timestamp"]
+            return batch_result[0]["status"], batch_result[0]["end_timestamp"], batch_result[0]["model_version"]
+        else:
+            return "not found!", None
+
+class TaskStatusCmd(Command):
+    """
+    use task id(model version) to query task status
+    """
+    def __init__(self, db_config, task_config):
+        super(TaskStatusCmd, self).__init__(db_config)
+        self.db_config = db_config
+        self.task_config = task_config
+        self.uid = self.task_config.get("user_uuid")
+        self.dataset_id = self.task_config.get("dataset_uuid")
+        self.timestamp = str(task_config["model_version"])
+
+    def exec(self):
+        filter_condition = {'user_uuid': self.uid,
+                            "dataset_uuid": self.dataset_id,
+                            "model_type": self.task_config["model_type"],
+                            "model_version": self.timestamp}
+        batch_exec_args = {"condition": filter_condition,
+                           "table_name": DBLinker.TRAIN_STATUS_TABLE,
+                           "sort_limit": ([("start_timestamp", -1)], 1)}
+        batch_result = self.linker.action(DBLinker.BATCH_FETCH, **batch_exec_args)
+        if len(batch_result) == 1:
+            return batch_result[0]["status"], batch_result[0]["end_timestamp"], batch_result[0]["model_version"]
         else:
             return "not found!", None
 
 class EmptyCmd():
     def __init__(self):
-        self.timestamp = time.time()
+        self.timestamp = str(time.time())
 
     def exec(self):
         time.sleep(1)

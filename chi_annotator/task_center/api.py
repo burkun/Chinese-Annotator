@@ -5,16 +5,10 @@ this file is created by burkun
 date:2018/3/14
 """
 import chi_annotator.task_center.config as config
-from chi_annotator.task_center.cmds import BatchTrainCmd, BatchPredictCmd, BatchNoDbPredictCmd, LatestStatusCmd
-from chi_annotator.task_center.cmds import EmptyCmd
+from chi_annotator.task_center.cmds import BatchTrainCmd, BatchPredictCmd, BatchNoDbPredictCmd, LatestStatusCmd, EmptyCmd
 from chi_annotator.task_center.common import TaskManager
-import os
-import json
-import datetime
-import time
-import pymongo
-from flask_restful import abort
-import flask_restful as restful
+import os, json, datetime, time, pymongo
+from flask_restful import abort, restful
 from flask import Flask, jsonify, request
 
 # config for db config and task center config
@@ -39,14 +33,33 @@ class HelloWorld(restful.Resource):
             abort_message("can not parse post data as json!")
         if "name" not in json_data:
             abort_message("can not find key: name")
-        return {"hello" : "world " + json_data["name"]}
+        return {"hello" : json_data["name"]}
 
 class TaskStatus(restful.Resource):
     """
-    need task id(timestamp)
+    need task id(timestamp), user id, dataset id
     """
     def post(self):
-        pass
+        json_data = request.get_json(force=True)
+        if json_data is None:
+            abort_message("can not parse post data as json!")
+        uid = json_data.get("user_uuid", None)
+        did = json_data.get("dataset_uuid", None)
+        task_type = json_data.get("task_type", None)
+        task_id = json_data.get("task_id", None)
+        if uid is None or did is None or task_type is None or task_type is None or task_id is None:
+            abort_message("can not find user_uuid or dataset_uuid or task_type or task_id")
+        db_config = GLOBAL_CONFIG[DB_CONFIG_KEY].copy()
+        task_config = config.CLASSIFY_TASK_CONFIG.copy()
+        task_config["user_uuid"] = uid
+        task_config["dataset_uuid"] = did
+        task_config["model_type"] = task_type
+        task_config["model_version"] = task_id
+        global_task_center_config = GLOBAL_CONFIG[TASK_CONFIG_KEY]
+        merged_config = config.AnnotatorConfig(task_config, global_task_center_config)
+        st_cmd = LatestStatusCmd(db_config, merged_config)
+        ret_data = st_cmd()
+        return jsonify({"status": ret_data[0], "end_time": ret_data[1], "task_id": ret_data[2]})
 
 class LatestTaskStatus(restful.Resource):
     """
@@ -70,7 +83,7 @@ class LatestTaskStatus(restful.Resource):
         merged_config = config.AnnotatorConfig(task_config, global_task_center_config)
         st_cmd = LatestStatusCmd(db_config, merged_config)
         ret_data = st_cmd()
-        return jsonify({"status": ret_data[0], "end_time": ret_data[1]})
+        return jsonify({"status": ret_data[0], "end_time": ret_data[1], "task_id": ret_data[2]})
 
 class BatchTrain(restful.Resource):
     """
@@ -96,7 +109,7 @@ class BatchTrain(restful.Resource):
         task_config["condition"] = {"timestamp": {"$gt": datetime.datetime.fromtimestamp(float(start_timestamp))}}
         task_config["sort_limit"] = ([("timestamp", pymongo.DESCENDING)], batch_number)
         task_config["model_version"] = time.time()
-        # TODO pipline and embedding path is user defined
+        # TODO pipline and embedding path will use user defined
         task_config["pipeline"] = [
             "char_tokenizer",
             "sentence_embedding_extractor",
@@ -153,7 +166,7 @@ def init_and_run(config_path):
     # init task manager
     task_manager = TaskManager(GLOBAL_CONFIG[TASK_CONFIG_KEY]["max_process_number"],
                                GLOBAL_CONFIG[TASK_CONFIG_KEY]["max_task_in_queue"])
-    # active task manager, let it on process not thread
+    # active task manager, let it run on process not on thread
     task_manager.exec_command(EmptyCmd())
     port = GLOBAL_CONFIG[TASK_CONFIG_KEY]["port"]
     debug = GLOBAL_CONFIG[TASK_CONFIG_KEY]["flask_debug"]
