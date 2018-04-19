@@ -1,6 +1,11 @@
+#!/bin/bash
+# encoding=utf8
+from __future__ import unicode_literals
+from __future__ import print_function
+from __future__ import division
+from __future__ import absolute_import
 import datetime
 import time
-
 from chi_annotator.task_center.common import Command
 from chi_annotator.task_center.common import DBLinker
 from chi_annotator.algo_factory.common import Message, TrainingData
@@ -154,7 +159,9 @@ class BatchPredictCmd(Command):
         interpreter = Interpreter.load(self.task_config.get_save_path_prefix(), model_version)
         preds = []
         for item in batch_result:
-            pred = interpreter.parse(item["text"])
+            pred = {}
+            pred["result"] = interpreter.parse(item["text"])
+            pred["text"] = item["text"]
             preds.append(pred)
         return preds
 

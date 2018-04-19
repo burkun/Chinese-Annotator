@@ -4,6 +4,11 @@
 this file is created by burkun
 date:2018/3/14
 """
+from __future__ import unicode_literals
+from __future__ import print_function
+from __future__ import division
+from __future__ import absolute_import
+
 import chi_annotator.task_center.config as config
 from chi_annotator.task_center.cmds import BatchTrainCmd, BatchPredictCmd, BatchNoDbPredictCmd, LatestStatusCmd, EmptyCmd
 from chi_annotator.task_center.common import TaskManager
@@ -101,6 +106,7 @@ class BatchTrain(restful.Resource):
         if start_timestamp is None or model_type is None or uid is None or did is None:
             abort_message("can not find uid or did or task type or start label timestamp")
         db_config = GLOBAL_CONFIG[DB_CONFIG_KEY].copy()
+        # TODO more task type will add later
         task_config = config.CLASSIFY_TASK_CONFIG.copy()
         batch_number = task_config.get("batch_num", DEFAULT_BATCH_NUM)
         task_config["user_uuid"] = uid
@@ -128,12 +134,60 @@ class BatchTrain(restful.Resource):
 
 
 class BatchDBPredict(restful.Resource):
+    """
+    paramters: uid, dataset id, task_type, db condition
+    TODO: user what condition?
+    """
     def post(self):
-        pass
+        json_data = request.get_json(force=True)
+        if json_data is None:
+            abort_message("can not parse post data as json!")
+        model_type = json_data.get("task_type", None)
+        uid = json_data.get("user_uuid", None)
+        did = json_data.get("dataset_uuid", None)
+        if model_type is None or uid is None or did is None:
+            abort_message("can not find uid or did or task type!")
+        db_config = GLOBAL_CONFIG[DB_CONFIG_KEY].copy()
+        # TODO more task type will add later
+        task_config = config.CLASSIFY_TASK_CONFIG.copy()
+        task_config["user_uuid"] = uid
+        task_config["dataset_uuid"] = did
+        task_config["model_type"] = model_type
+
+        global_task_center_config = GLOBAL_CONFIG[TASK_CONFIG_KEY]
+        merged_config = config.AnnotatorConfig(task_config, global_task_center_config)
+        merged_config["model_path"] = merged_config.get_save_path_prefix()
+        bpc = BatchPredictCmd(db_config, merged_config)
+
 
 class BatchNoDBPredict(restful.Resource):
+    """
+     uid, dataset id, task_type, data
+    """
     def post(self):
-        pass
+        json_data = request.get_json(force=True)
+        if json_data is None:
+            abort_message("can not parse post data as json!")
+        model_type = json_data.get("task_type", None)
+        uid = json_data.get("user_uuid", None)
+        did = json_data.get("dataset_uuid", None)
+        data = json_data.get("data", None)
+        if model_type is None or uid is None or did is None or data is None:
+            abort_message("can not find uid or did or task type or data!")
+        db_config = GLOBAL_CONFIG[DB_CONFIG_KEY].copy()
+        # TODO more task type will add later
+        task_config = config.CLASSIFY_TASK_CONFIG.copy()
+        task_config["user_uuid"] = uid
+        task_config["dataset_uuid"] = did
+        task_config["model_type"] = model_type
+        task_config["data"] = data
+        global_task_center_config = GLOBAL_CONFIG[TASK_CONFIG_KEY]
+        merged_config = config.AnnotatorConfig(task_config, global_task_center_config)
+        merged_config["model_path"] = merged_config.get_save_path_prefix()
+        bnpc = BatchNoDbPredictCmd(db_config, merged_config)
+        # format = {txt:XXX, result: {label : XXX, con: XXX}result
+        result = bnpc()
+        return jsonify(result)
 
 def merge_config(old_config, new_config):
     for key in new_config:
@@ -147,7 +201,6 @@ def merge_config(old_config, new_config):
 def load_config(config_path):
     m_config = {}
     if os.path.exists(config_path):
-        m_config = {}
         with open(config_path) as config_file:
             m_config = json.loads(config_file.read())
     m_config["task_center_config"] = merge_config(config.TASK_CENTER_GLOBAL_CONFIG, m_config.get("task_center_config", {}))
